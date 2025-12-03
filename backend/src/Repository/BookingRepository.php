@@ -24,9 +24,11 @@ class BookingRepository extends ServiceEntityRepository
             ->andWhere('b.startAt >= :from')
             ->andWhere('b.startAt < :to')
             ->andWhere('b.cancelledAt IS NULL')
+            ->andWhere('b.deletedAt IS NULL')
             ->setParameter('provider', $provider)
             ->setParameter('from', $from)
             ->setParameter('to', $to)
+            ->orderBy('b.startAt', 'ASC')
             ->getQuery()
             ->getResult();
     }

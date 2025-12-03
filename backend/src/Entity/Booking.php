@@ -11,9 +11,9 @@ use Symfony\Component\Validator\Constraints as Assert;
  *
  */
 #[ORM\Entity(repositoryClass: BookingRepository::class)]
-#[ORM\Table(name: 'booking', uniqueConstraints: [
-    new ORM\UniqueConstraint(name: 'uniq_provider_start', columns: ['provider_id', 'start_at'])
-])]
+#[ORM\Table(name: 'booking')]
+#[ORM\UniqueConstraint(name: 'uniq_provider_start', columns: ['provider_id', 'start_at'])]
+
 class Booking
 {
     /**
