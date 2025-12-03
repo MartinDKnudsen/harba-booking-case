@@ -34,6 +34,9 @@
                 <div class="text-xs text-slate-600">
                   {{ formatSlot(b.startAt) }}
                 </div>
+                <div v-if="b.note" class="text-xs text-slate-700 mt-1">
+                  Note: {{ b.note }}
+                </div>
                 <div class="mt-1 flex flex-wrap gap-2">
             <span
                 class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
@@ -92,6 +95,7 @@ interface AdminBookingItem {
   startAt: string
   cancelled: boolean
   deleted: boolean
+  note: string | null
 }
 
 interface AdminBookingGroup {

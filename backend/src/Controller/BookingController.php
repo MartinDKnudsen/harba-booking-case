@@ -23,6 +23,10 @@ use Symfony\Component\Validator\ConstraintViolationListInterface;
 
 class BookingController extends AbstractController
 {
+    /**
+     * @param ServiceRepository $serviceRepository
+     * @return JsonResponse
+     */
     #[Route('/api/services', name: 'api_services', methods: ['GET'])]
     public function listServices(ServiceRepository $serviceRepository): JsonResponse
     {
@@ -44,6 +48,10 @@ class BookingController extends AbstractController
         return new JsonResponse($data);
     }
 
+    /**
+     * @param ProviderRepository $providerRepository
+     * @return JsonResponse
+     */
     #[Route('/api/providers', name: 'api_providers', methods: ['GET'])]
     public function listProviders(ProviderRepository $providerRepository): JsonResponse
     {
@@ -65,6 +73,14 @@ class BookingController extends AbstractController
         return new JsonResponse($data);
     }
 
+    /**
+     * @param int $id
+     * @param Request $request
+     * @param ProviderRepository $providerRepository
+     * @param BookingRepository $bookingRepository
+     * @param SlotGenerator $slotGenerator
+     * @return JsonResponse
+     */
     #[Route('/api/providers/{id}/slots', name: 'api_provider_slots', methods: ['GET'])]
     public function providerSlots(
         int $id,
@@ -126,6 +142,9 @@ class BookingController extends AbstractController
     }
 
 
+    /**
+     * @throws \DateMalformedStringException
+     */
     #[Route('/api/bookings', name: 'api_book', methods: ['POST'])]
     public function book(
         Request $request,
@@ -181,6 +200,7 @@ class BookingController extends AbstractController
             'provider' => $provider,
             'startAt' => $startAt,
             'cancelledAt' => null,
+            'deletedAt' => null,
         ]);
 
         if ($existing) {
@@ -203,23 +223,29 @@ class BookingController extends AbstractController
         $booking->setProvider($provider);
         $booking->setService($service);
         $booking->setStartAt($startAt);
+        $booking->setNote($data['note'] ?? null);
 
         $em->persist($booking);
         $em->flush();
 
-        return new JsonResponse(array_map(function (Booking $booking) {
-            return [
-                'id' => $booking->getId(),
-                'userId' => $booking->getUser()->id,
-                'providerId' => $booking->getProvider()->getId(),
-                'serviceId' => $booking->getService()->getId(),
-                'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
-                'cancelled' => $booking->isCancelled(),
-                'deleted' => $booking->isDeleted(),
-            ];
-        }, $bookings));
+        return new JsonResponse([
+            'id' => $booking->getId(),
+            'userId' => $user->getId(),
+            'providerId' => $provider->getId(),
+            'serviceId' => $service->getId(),
+            'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
+            'cancelled' => $booking->isCancelled(),
+            'deleted' => $booking->isDeleted(),
+            'note' => $booking->getNote(),
+        ], 201);
     }
 
+    /**
+     * @param Request $request
+     * @param UserRepository $userRepository
+     * @param BookingRepository $bookingRepository
+     * @return JsonResponse
+     */
     #[Route('/api/my/bookings', name: 'api_my_bookings', methods: ['GET'])]
     public function myBookings(
         Request $request,
@@ -243,10 +269,20 @@ class BookingController extends AbstractController
                 'serviceId' => $booking->getService()->getId(),
                 'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
                 'cancelled' => $booking->isCancelled(),
+                'deleted' => $booking->isDeleted(),
+                'note' => $booking->getNote(),
             ];
         }, $bookings));
     }
 
+    /**
+     * @param int $id
+     * @param Request $request
+     * @param UserRepository $userRepository
+     * @param BookingRepository $bookingRepository
+     * @param EntityManagerInterface $em
+     * @return JsonResponse
+     */
     #[Route('/api/bookings/{id}/cancel', name: 'api_booking_cancel', methods: ['POST'])]
     public function cancel(
         int $id,
@@ -286,6 +322,12 @@ class BookingController extends AbstractController
         return new JsonResponse(['message' => 'Cancelled']);
     }
 
+    /**
+     * @param Request $request
+     * @param UserRepository $userRepository
+     * @param BookingRepository $bookingRepository
+     * @return JsonResponse
+     */
     #[Route('/api/admin/bookings', name: 'api_admin_bookings', methods: ['GET'])]
     public function adminBookings(
         Request $request,
@@ -313,11 +355,17 @@ class BookingController extends AbstractController
                 'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
                 'cancelled' => $booking->isCancelled(),
                 'deleted' => $booking->isDeleted(),
+                'note' => $booking->getNote(),
             ];
         }, $bookings));
 
     }
 
+    /**
+     * @param Request $request
+     * @param UserRepository $userRepository
+     * @return object|null
+     */
     private function getUserFromToken(Request $request, UserRepository $userRepository): ?object
     {
         $authHeader = $request->headers->get('Authorization', '');
@@ -330,6 +378,14 @@ class BookingController extends AbstractController
         return $userRepository->findOneBy(['apiToken' => $token]);
     }
 
+    /**
+     * @param int $id
+     * @param Request $request
+     * @param UserRepository $userRepository
+     * @param BookingRepository $bookingRepository
+     * @param EntityManagerInterface $em
+     * @return JsonResponse
+     */
     #[Route('/api/admin/bookings/{id}/delete', name: 'api_admin_booking_delete', methods: ['POST'])]
     public function adminDelete(
         int $id,
@@ -362,6 +418,10 @@ class BookingController extends AbstractController
         return new JsonResponse(['message' => 'Deleted']);
     }
 
+    /**
+     * @param ConstraintViolationListInterface $errors
+     * @return JsonResponse
+     */
     private function validationError(ConstraintViolationListInterface $errors): JsonResponse
     {
         $messages = [];

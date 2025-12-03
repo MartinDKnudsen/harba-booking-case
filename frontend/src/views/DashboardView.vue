@@ -90,14 +90,11 @@
       <div class="mt-4 flex items-center gap-3">
         <button
             class="px-4 py-2 bg-emerald-600 text-white rounded disabled:opacity-50"
-            :disabled="!selectedProviderId || !selectedServiceId || !selectedSlot || loadingBook"
-            @click="onBook"
+            :disabled="!selectedProviderId || !selectedServiceId || !selectedSlot || bookingLoading"
+            @click="openBookModal"
         >
           Book selected slot
         </button>
-        <span v-if="bookMessage" class="text-sm" :class="bookError ? 'text-red-600' : 'text-emerald-700'">
-          {{ bookMessage }}
-        </span>
       </div>
     </section>
 
@@ -114,6 +111,9 @@
             <div class="text-xs text-slate-600">
               Provider {{ b.providerId }}, Service {{ b.serviceId }}, {{ formatSlot(b.startAt) }}
             </div>
+            <div v-if="b.note" class="text-xs text-slate-700 mt-1">
+              Note: {{ b.note }}
+            </div>
             <div class="text-xs" :class="b.cancelled ? 'text-red-600' : 'text-emerald-600'">
               {{ b.cancelled ? 'Cancelled' : 'Active' }}
             </div>
@@ -129,6 +129,51 @@
       </div>
       <p v-else class="text-sm text-slate-600">No bookings yet.</p>
     </section>
+  </div>
+  <div
+      v-if="showNoteModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+  >
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-4">
+      <h3 class="text-lg font-semibold mb-2">Confirm booking</h3>
+      <p class="text-sm text-slate-600 mb-3">
+        You are about to book:
+        <span class="font-medium">
+          {{ selectedSlot ? formatSlot(selectedSlot) : '' }}
+        </span>
+      </p>
+
+      <label class="block text-sm font-medium mb-1">Optional note</label>
+      <textarea
+          v-model="bookingNote"
+          rows="3"
+          class="w-full border rounded px-3 py-2 text-sm mb-3 outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900/20"
+          placeholder="Add a note for the provider (optional)"
+      ></textarea>
+
+      <p v-if="bookingError" class="text-sm text-red-600 mb-2">
+        {{ bookingError }}
+      </p>
+
+      <div class="flex justify-end gap-2">
+        <button
+            type="button"
+            class="px-3 py-1.5 rounded border text-sm"
+            @click="cancelBookingModal"
+            :disabled="bookingLoading"
+        >
+          Cancel
+        </button>
+        <button
+            type="button"
+            class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm disabled:opacity-50"
+            @click="confirmBooking"
+            :disabled="bookingLoading"
+        >
+          {{ bookingLoading ? 'Booking…' : 'Confirm booking' }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -154,6 +199,8 @@ interface BookingItem {
   serviceId: number
   startAt: string
   cancelled: boolean
+  deleted: boolean
+  note: string | null
 }
 
 const fromDate = ref<string | null>(null)
@@ -169,15 +216,26 @@ const selectedServiceId = ref<number | null>(null)
 const selectedProviderId = ref<number | null>(null)
 const selectedSlot = ref<string | null>(null)
 
-const loadingBook = ref(false)
-const bookMessage = ref('')
-const bookError = ref(false)
+const showNoteModal = ref(false)
+const bookingNote = ref('')
+const bookingLoading = ref(false)
+const bookingError = ref('')
 
 function formatSlot(iso: string) {
   const d = new Date(iso)
   return d.toLocaleString()
 }
 
+
+async function bookSelected() {
+  if (!selectedSlot.value || !selectedProviderId.value || !selectedServiceId.value) return
+  await api.post('/api/bookings', {
+    provider_id: selectedProviderId.value,
+    service_id: selectedServiceId.value,
+    start_at: selectedSlot.value,
+  })
+  await loadMyBookings()
+}
 async function loadServices() {
   const response = await api.get('/api/services')
   services.value = response.data
@@ -228,31 +286,49 @@ async function onSelectProvider(id: number) {
   await loadSlots()
 }
 
-async function onBook() {
+function openBookModal() {
   if (!selectedProviderId.value || !selectedServiceId.value || !selectedSlot.value) {
     return
   }
 
-  loadingBook.value = true
-  bookMessage.value = ''
-  bookError.value = false
+  bookingNote.value = ''
+  bookingError.value = ''
+  showNoteModal.value = true
+}
+
+async function confirmBooking() {
+  if (!selectedProviderId.value || !selectedServiceId.value || !selectedSlot.value) {
+    return
+  }
+
+  bookingLoading.value = true
+  bookingError.value = ''
 
   try {
     await api.post('/api/bookings', {
       provider_id: selectedProviderId.value,
       service_id: selectedServiceId.value,
-      start_at: selectedSlot.value
+      start_at: selectedSlot.value,
+      note: bookingNote.value || null
     })
-    bookMessage.value = 'Booking created'
+
+    showNoteModal.value = false
+    bookingNote.value = ''
     await loadMyBookings()
     await loadSlots()
   } catch (e: any) {
-    bookError.value = true
-    bookMessage.value = e?.response?.data?.message || 'Booking failed'
+    bookingError.value = e?.response?.data?.message || 'Booking failed'
   } finally {
-    loadingBook.value = false
+    bookingLoading.value = false
   }
 }
+
+function cancelBookingModal() {
+  showNoteModal.value = false
+  bookingNote.value = ''
+  bookingError.value = ''
+}
+
 
 async function onCancel(id: number) {
   await api.post(`/api/bookings/${id}/cancel`)
