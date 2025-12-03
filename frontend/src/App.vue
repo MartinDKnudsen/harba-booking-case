@@ -33,11 +33,11 @@ import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { onMounted } from 'vue'
 import { useAuth } from './auth'
 
-const { isAuthenticated, logout, fetchMe } = useAuth()
+const { isAuthenticated, logout, fetchMe, user } = useAuth()
 const router = useRouter()
 
 onMounted(async () => {
-  if (!isAuthenticated.value && localStorage.getItem('token')) {
+  if (localStorage.getItem('token')) {
     await fetchMe()
   }
 })
@@ -47,6 +47,7 @@ function onLogout() {
   router.push({ name: 'login' })
 }
 </script>
+
 
 <style scoped>
 </style>

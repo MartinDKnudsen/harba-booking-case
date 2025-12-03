@@ -19,7 +19,7 @@ security:
       provider: app_user_provider
 
   access_control:
+    - { path: ^/api, roles: PUBLIC_ACCESS }
     - { path: ^/api/register, roles: PUBLIC_ACCESS }
     - { path: ^/api/login, roles: PUBLIC_ACCESS }
     - { path: ^/api/admin, roles: ROLE_ADMIN }
-    - { path: ^/api, roles: PUBLIC_ACCESS }

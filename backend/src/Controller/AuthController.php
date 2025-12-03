@@ -2,39 +2,51 @@
 
 namespace App\Controller;
 
+use App\Dto\RegisterRequest;
 use App\Entity\User;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
-use Random\RandomException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\RateLimiter\Attribute\RateLimit;
+
+
 
 class AuthController extends AbstractController
 {
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
     public function register(
         Request $request,
+        UserRepository $userRepository,
+        UserPasswordHasherInterface $passwordHasher,
         EntityManagerInterface $em,
-        UserPasswordHasherInterface $passwordHasher
+        ValidatorInterface $validator
     ): JsonResponse {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        if (!isset($data['email'], $data['password'])) {
-            return new JsonResponse(['message' => 'email and password are required'], 400);
+        $input = new RegisterRequest();
+        $input->email = $data['email'] ?? null;
+        $input->password = $data['password'] ?? null;
+
+        $errors = $validator->validate($input);
+        if (count($errors) > 0) {
+            return $this->validationError($errors);
         }
 
-        $existing = $em->getRepository(User::class)->findOneBy(['email' => $data['email']]);
+        $existing = $userRepository->findOneBy(['email' => mb_strtolower($input->email)]);
         if ($existing) {
-            return new JsonResponse(['message' => 'Email already used'], 400);
+            return new JsonResponse(['message' => 'Email is already in use'], 409);
         }
 
         $user = new User();
-        $user->setEmail($data['email']);
-        $hashed = $passwordHasher->hashPassword($user, $data['password']);
-        $user->setPassword($hashed);
+        $user->setEmail($input->email);
+        $hashedPassword = $passwordHasher->hashPassword($user, $input->password);
+        $user->setPassword($hashedPassword);
         $user->setRoles(['ROLE_USER']);
 
         $em->persist($user);
@@ -43,8 +55,11 @@ class AuthController extends AbstractController
         return new JsonResponse([
             'id' => $user->getId(),
             'email' => $user->getEmail(),
+            'roles' => $user->getRoles(),
         ], 201);
     }
+
+
 
     #[Route('/api/me', name: 'api_me', methods: ['GET'])]
     public function me(Request $request, UserRepository $userRepository): JsonResponse
@@ -72,6 +87,7 @@ class AuthController extends AbstractController
      * @throws RandomException
      */
     #[Route('/api/login', name: 'api_login', methods: ['POST'])]
+    #[RateLimit('login')]
     public function login(
         Request $request,
         UserRepository $userRepository,
@@ -103,6 +119,16 @@ class AuthController extends AbstractController
             'roles' => $user->getRoles(),
             'token' => $token,
         ]);
+    }
+
+    private function validationError(ConstraintViolationListInterface $errors): JsonResponse
+    {
+        $messages = [];
+        foreach ($errors as $error) {
+            $messages[$error->getPropertyPath()] = $error->getMessage();
+        }
+
+        return new JsonResponse(['errors' => $messages], 422);
     }
 
 }

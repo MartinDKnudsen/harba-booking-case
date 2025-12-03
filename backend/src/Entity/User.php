@@ -12,25 +12,29 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Table(name: '`user`')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
-    #[ORM\Id]
-    #[ORM\GeneratedValue]
-    #[ORM\Column]
-    private ?int $id = null;
-
     #[ORM\Column(length: 180, unique: true)]
     #[Assert\NotBlank]
     #[Assert\Email]
+    #[Assert\Length(max: 180)]
     private ?string $email = null;
 
     #[ORM\Column]
+    #[Assert\NotBlank]
     private array $roles = [];
 
     #[ORM\Column]
     #[Assert\NotBlank]
+    #[Assert\Length(min: 6, max: 255)]
     private ?string $password = null;
 
     #[ORM\Column(length: 64, unique: true, nullable: true)]
+    #[Assert\Length(max: 64)]
     private ?string $apiToken = null;
+
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
 
     public function getId(): ?int
     {

@@ -16,6 +16,10 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
+use App\Dto\BookRequest;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
+
 
 class BookingController extends AbstractController
 {
@@ -130,7 +134,8 @@ class BookingController extends AbstractController
         ServiceRepository $serviceRepository,
         BookingRepository $bookingRepository,
         SlotGenerator $slotGenerator,
-        EntityManagerInterface $em
+        EntityManagerInterface $em,
+        ValidatorInterface $validator
     ): JsonResponse {
         $user = $this->getUserFromToken($request, $userRepository);
         if (!$user) {
@@ -138,22 +143,29 @@ class BookingController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
-        if (!isset($data['provider_id'], $data['service_id'], $data['start_at'])) {
-            return new JsonResponse(['message' => 'provider_id, service_id and start_at are required'], 400);
+
+        $input = new BookRequest();
+        $input->providerId = isset($data['provider_id']) ? (int) $data['provider_id'] : null;
+        $input->serviceId = isset($data['service_id']) ? (int) $data['service_id'] : null;
+        $input->startAt = $data['start_at'] ?? null;
+
+        $errors = $validator->validate($input);
+        if (count($errors) > 0) {
+            return $this->validationError($errors);
         }
 
-        $provider = $providerRepository->find($data['provider_id']);
+        $provider = $providerRepository->find($input->providerId);
         if (!$provider) {
             return new JsonResponse(['message' => 'Provider not found'], 404);
         }
 
-        $service = $serviceRepository->find($data['service_id']);
+        $service = $serviceRepository->find($input->serviceId);
         if (!$service) {
             return new JsonResponse(['message' => 'Service not found'], 404);
         }
 
         try {
-            $startAt = new \DateTimeImmutable($data['start_at']);
+            $startAt = new \DateTimeImmutable($input->startAt);
         } catch (\Exception $e) {
             return new JsonResponse(['message' => 'Invalid start_at'], 400);
         }
@@ -195,13 +207,17 @@ class BookingController extends AbstractController
         $em->persist($booking);
         $em->flush();
 
-        return new JsonResponse([
-            'id' => $booking->getId(),
-            'userId' => $user->getId(),
-            'providerId' => $provider->getId(),
-            'serviceId' => $service->getId(),
-            'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
-        ], 201);
+        return new JsonResponse(array_map(function (Booking $booking) {
+            return [
+                'id' => $booking->getId(),
+                'userId' => $booking->getUser()->id,
+                'providerId' => $booking->getProvider()->getId(),
+                'serviceId' => $booking->getService()->getId(),
+                'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
+                'cancelled' => $booking->isCancelled(),
+                'deleted' => $booking->isDeleted(),
+            ];
+        }, $bookings));
     }
 
     #[Route('/api/my/bookings', name: 'api_my_bookings', methods: ['GET'])]
@@ -256,6 +272,10 @@ class BookingController extends AbstractController
             return new JsonResponse(['message' => 'Forbidden'], 403);
         }
 
+        if ($booking->isDeleted()) {
+            return new JsonResponse(['message' => 'Booking is deleted'], 400);
+        }
+
         if ($booking->isCancelled()) {
             return new JsonResponse(['message' => 'Already cancelled'], 400);
         }
@@ -286,16 +306,19 @@ class BookingController extends AbstractController
         return new JsonResponse(array_map(function (Booking $booking) {
             return [
                 'id' => $booking->getId(),
-                'userId' => $booking->getUser()->getId(),
-                'providerId' => $booking->getProvider()->getId(),
-                'serviceId' => $booking->getService()->getId(),
+                'userId' => $booking->getUser()?->getId(),
+                'userEmail' => $booking->getUser()?->getEmail(),
+                'providerId' => $booking->getProvider()?->getId(),
+                'serviceId' => $booking->getService()?->getId(),
                 'startAt' => $booking->getStartAt()->format(\DateTimeInterface::ATOM),
                 'cancelled' => $booking->isCancelled(),
+                'deleted' => $booking->isDeleted(),
             ];
         }, $bookings));
+
     }
 
-    private function getUserFromToken(Request $request, UserRepository $userRepository): ?User
+    private function getUserFromToken(Request $request, UserRepository $userRepository): ?object
     {
         $authHeader = $request->headers->get('Authorization', '');
         if (!str_starts_with($authHeader, 'Bearer ')) {
@@ -305,5 +328,47 @@ class BookingController extends AbstractController
         $token = substr($authHeader, 7);
 
         return $userRepository->findOneBy(['apiToken' => $token]);
+    }
+
+    #[Route('/api/admin/bookings/{id}/delete', name: 'api_admin_booking_delete', methods: ['POST'])]
+    public function adminDelete(
+        int $id,
+        Request $request,
+        UserRepository $userRepository,
+        BookingRepository $bookingRepository,
+        EntityManagerInterface $em
+    ): JsonResponse {
+        $user = $this->getUserFromToken($request, $userRepository);
+        if (!$user) {
+            return new JsonResponse(['message' => 'Unauthenticated'], 401);
+        }
+
+        if (!in_array('ROLE_ADMIN', $user->getRoles(), true)) {
+            return new JsonResponse(['message' => 'Forbidden'], 403);
+        }
+
+        $booking = $bookingRepository->find($id);
+        if (!$booking) {
+            return new JsonResponse(['message' => 'Booking not found'], 404);
+        }
+
+        if ($booking->isDeleted()) {
+            return new JsonResponse(['message' => 'Already deleted'], 400);
+        }
+
+        $booking->softDelete();
+        $em->flush();
+
+        return new JsonResponse(['message' => 'Deleted']);
+    }
+
+    private function validationError(ConstraintViolationListInterface $errors): JsonResponse
+    {
+        $messages = [];
+        foreach ($errors as $error) {
+            $messages[$error->getPropertyPath()] = $error->getMessage();
+        }
+
+        return new JsonResponse(['errors' => $messages], 422);
     }
 }

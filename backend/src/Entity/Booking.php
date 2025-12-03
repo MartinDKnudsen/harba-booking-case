@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use App\Repository\BookingRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
+
 
 #[ORM\Entity(repositoryClass: BookingRepository::class)]
 #[ORM\Table(name: 'booking', uniqueConstraints: [
@@ -18,24 +20,34 @@ class Booking
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
+    #[Assert\NotNull]
     private ?User $user = null;
 
     #[ORM\ManyToOne(targetEntity: Provider::class)]
     #[ORM\JoinColumn(nullable: false)]
+    #[Assert\NotNull]
     private ?Provider $provider = null;
 
     #[ORM\ManyToOne(targetEntity: Service::class)]
     #[ORM\JoinColumn(nullable: false)]
+    #[Assert\NotNull]
     private ?Service $service = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
+    #[Assert\NotNull]
+    #[Assert\Type(\DateTimeImmutable::class)]
     private \DateTimeImmutable $startAt;
 
     #[ORM\Column(type: 'datetime_immutable')]
+    #[Assert\NotNull]
+    #[Assert\Type(\DateTimeImmutable::class)]
     private \DateTimeImmutable $createdAt;
 
     #[ORM\Column(type: 'datetime_immutable', nullable: true)]
+    #[Assert\Type(\DateTimeImmutable::class)]
     private ?\DateTimeImmutable $cancelledAt = null;
+
+    private ?\DateTimeImmutable $deletedAt = null;
 
     public function __construct()
     {
@@ -115,5 +127,22 @@ class Booking
     public function isCancelled(): bool
     {
         return $this->cancelledAt !== null;
+    }
+
+    public function getDeletedAt(): ?\DateTimeImmutable
+    {
+        return $this->deletedAt;
+    }
+
+    public function softDelete(): void
+    {
+        if ($this->deletedAt === null) {
+            $this->deletedAt = new \DateTimeImmutable();
+        }
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->deletedAt !== null;
     }
 }

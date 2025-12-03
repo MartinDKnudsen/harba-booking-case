@@ -4,6 +4,8 @@ namespace App\Entity;
 
 use App\Repository\ProviderRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Validator\Constraints as Assert;
+
 
 #[ORM\Entity(repositoryClass: ProviderRepository::class)]
 class Provider
@@ -14,9 +16,12 @@ class Provider
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Assert\NotBlank]
+    #[Assert\Length(min: 2, max: 255)]
     private ?string $name = null;
 
     #[ORM\Column(type: 'json')]
+    #[Assert\NotNull]
     private array $workingHours = [];
 
     public function getId(): ?int
