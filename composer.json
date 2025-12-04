@@ -14,9 +14,12 @@
       "sh -c '[ -f backend/.env.test ] || (echo \"→ Creating .env.test\" && cp backend/.env.test.example backend/.env.test)'",
       "docker compose up -d --build",
       "docker compose exec php composer install",
+      "docker compose exec php sh -c 'until php bin/console dbal:run-sql \"SELECT 1\" >/dev/null 2>&1; do echo \"Waiting for database...\"; sleep 2; done'",
+      "docker compose exec db mysql -uroot -proot -e \"CREATE DATABASE IF NOT EXISTS harba_test; GRANT ALL PRIVILEGES ON harba_test.* TO 'harba'@'%'; FLUSH PRIVILEGES;\"",
       "docker compose exec php php bin/console doctrine:migrations:migrate -n",
       "docker compose exec php php bin/console doctrine:migrations:migrate -n --env=test",
       "@app:seed",
+      "docker compose exec php php bin/console app:create-admin",
       "@app:test"
     ],
     "app:frontend": [
