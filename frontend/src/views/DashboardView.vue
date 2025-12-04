@@ -45,7 +45,7 @@
       <div class="mt-4 space-y-3">
         <div class="flex flex-wrap items-end gap-3">
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Fra dato</label>
+            <label class="block text-xs font-medium text-slate-600 mb-1">From date</label>
             <input
                 v-model="fromDate"
                 type="date"
@@ -53,7 +53,7 @@
             />
           </div>
           <div>
-            <label class="block text-xs font-medium text-slate-600 mb-1">Til dato</label>
+            <label class="block text-xs font-medium text-slate-600 mb-1">To date</label>
             <input
                 v-model="toDate"
                 type="date"
@@ -65,12 +65,12 @@
               @click="onApplyDateFilter"
               :disabled="loadingSlots"
           >
-            Opdater tider
+            Update times
           </button>
         </div>
 
         <div v-if="slots.length">
-          <h3 class="font-medium mb-2">Ledige tider</h3>
+          <h3 class="font-medium mb-2">Available times</h3>
           <div class="flex flex-wrap gap-2 max-h-64 overflow-auto border rounded p-2">
             <button
                 v-for="slot in slots"
@@ -83,7 +83,7 @@
             </button>
           </div>
         </div>
-        <p v-else class="text-sm text-slate-600">Ingen ledige tider i valgt interval.</p>
+        <p v-else class="text-sm text-slate-600">Nothing available in the selected interval.</p>
       </div>
 
 
