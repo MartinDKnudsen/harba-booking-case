@@ -54,7 +54,7 @@ After startup:
 
 - Frontend: `http://localhost:5173`
 - Backend API: `http://localhost:8080`
-- Swagger Docs: `http://localhost:8080/api/docs`
+- Swagger Docs: `http://localhost:8080/docs/index.html`
 
 ---
 
