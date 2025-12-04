@@ -32,7 +32,7 @@ This solution fulfills all required and bonus criteria:
 
 Make sure **Docker** and **Composer** are installed.
 
-Start the entire system:
+Start the entire backend:
 
 ```bash
   composer app:up
@@ -44,8 +44,11 @@ This command automatically:
 - Installs backend dependencies
 - Runs migrations (dev + test)
 - Seeds demo data
-- Installs frontend dependencies
-- Starts Vue/Vite dev server
+
+Start the frontend:
+```bash
+  composer app:frontend
+  ```
 
 After startup:
 
@@ -229,7 +232,7 @@ Includes tests for:
 Run tests:
 
 ```bash
-composer app:test
+  composer app:test
 ```
 
 Uses dedicated `harba_test` database with automatic rollback.
@@ -241,7 +244,7 @@ Uses dedicated `harba_test` database with automatic rollback.
 View API docs:
 
 ```text
-http://localhost:8080/api/docs
+http://localhost:8080/docs/index.html
 ```
 
 Includes:
@@ -329,3 +332,110 @@ Working hours:
 - Automatic DB setup + migrations
 - Fully documented API
 - PHPUnit tests
+
+
+## 🔮 Future: Deployment & Maintenance
+
+### 🚢 Deployment Strategy
+
+- **Containerized stack**
+    - Build Docker images for:
+        - `backend` (Symfony)
+        - `frontend` (Vite)
+        - `nginx`
+    - Push versioned images to a container registry (GitHub Container Registry, Docker Hub, etc.).
+    - Run the stack via:
+        - **Docker Compose** for small setups / single-tenant or on-prem.
+        - **Kubernetes** (or similar) for larger / multi-tenant environments.
+
+- **Environments**
+    - `dev`: auto-seeded data, relaxed CORS, verbose logging.
+    - `staging`: production-like configuration, real database, feature validation before release.
+    - `prod`: locked-down configuration, no auto-seeding, migrations run as part of deployment.
+
+---
+
+### ⚙️ CI/CD Pipeline
+
+- **On push to `main`:**
+    - Run linters and static analysis (PHP, TypeScript).
+    - Run PHPUnit tests.
+    - Run frontend tests (unit/e2e if available).
+    - Build and push Docker images.
+
+- **On tagged release:**
+    - Deploy to **staging**.
+    - Run smoke tests against the API and frontend.
+    - Promote the same images to **production** if all checks pass.
+
+---
+
+### 🔑 Configuration & Secrets
+
+- All configuration provided via **environment variables**:
+    - DB credentials
+    - API/JWT secrets
+    - Rate limit settings
+    - CORS origins
+    - Environment flags (dev/stage/prod)
+- Secrets stored in:
+    - CI secret storage, Vault, or Kubernetes Secrets.
+- **Never** commit secrets to git.
+
+---
+
+### 🗃 Database & Migrations
+
+- **Schema changes**
+    - Managed via Doctrine migrations.
+    - Migrations executed automatically in the deployment pipeline (optionally with pre-deployment backup).
+- **Backups**
+    - Automated database backups (e.g. daily full + hourly incremental).
+    - Regular restore tests in **staging** to verify that backups are usable.
+
+---
+
+### 📈 Monitoring & Logging
+
+- **Logging**
+    - Symfony (Monolog) logs to stdout → collected by the platform (ELK, Loki, CloudWatch, etc.).
+    - Nginx access/error logs centralised in the same logging stack.
+
+- **Monitoring**
+    - Health checks for `nginx`, `php-fpm`, `mysql`, `frontend`.
+    - Metrics dashboard (Prometheus + Grafana or similar) with alerts on:
+        - HTTP error rate
+        - Latency / response times
+        - DB load & slow queries
+        - Container restarts / crash loops
+
+---
+
+### 🛡 Security & Hardening
+
+- Enforce **HTTPS** (TLS termination at load balancer or nginx).
+- Apply strict **CORS** rules and extend rate limiting beyond login if needed.
+- Regular dependency updates:
+    - `composer outdated` and `npm audit` integrated into CI.
+- Role-based access control:
+    - Clear separation between `ROLE_USER` and `ROLE_ADMIN` enforced at route + controller level.
+- Periodic security scans:
+    - Use tools like Snyk/Dependabot and framework-specific security advisories.
+
+---
+
+### 🧰 Operations & Maintenance
+
+- **Release management**
+    - Use semantic versioning for backend and frontend.
+    - Maintain a changelog for each release (features, fixes, migration notes).
+
+- **Incident handling**
+    - Define runbooks for:
+        - Failed migrations
+        - API downtime / degraded performance
+        - Slot generation issues or double-bookings
+
+- **Scaling**
+    - Horizontally scale stateless services (`nginx`, `php-fpm`, `frontend`) behind a load balancer.
+    - Vertically scale MySQL and introduce read replicas as load and data volume grow.
