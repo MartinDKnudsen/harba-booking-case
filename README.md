@@ -439,3 +439,13 @@ Working hours:
 - **Scaling**
     - Horizontally scale stateless services (`nginx`, `php-fpm`, `frontend`) behind a load balancer.
     - Vertically scale MySQL and introduce read replicas as load and data volume grow.
+ 
+---
+
+### App images
+
+<img width="1069" height="964" alt="image" src="https://github.com/user-attachments/assets/961bf9a4-acdd-4091-88e2-3941182f9518" />
+
+<img width="996" height="583" alt="image" src="https://github.com/user-attachments/assets/d6e5f867-af91-4e85-8efb-369c6f4236db" />
+
+
